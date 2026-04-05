@@ -4,7 +4,7 @@ import {
   Tooltip, Legend, ResponsiveContainer, ReferenceLine
 } from "recharts";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "https://salescast-api.onrender.com";
 
 function generateSampleCSV() {
   const rows = ["date,sales"];
