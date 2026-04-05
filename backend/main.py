@@ -6,7 +6,7 @@ app = FastAPI(title="売上予測API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 本番では実際のドメインに変更する
+    allow_origins=["https://salescast.vercel.app"],  # 本番では実際のドメインに変更する
     allow_methods=["*"],
     allow_headers=["*"],
 )
