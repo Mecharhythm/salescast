@@ -285,7 +285,7 @@ export default function App() {
               />
               <div>
                 <div style={{ fontSize: 14, fontWeight: 500, color: "#e8eaf0", marginBottom: 4 }}>
-                  予測精度の向上に協力する（任意）
+                  予測精度の向上に協力する（任意）― <a href="/privacy" style={{ color: "#4f8ef7" }}>プライバシーポリシー</a>
                 </div>
                 <div style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6 }}>
                   チェックを入れると、アップロードしたデータが<strong style={{ color: "#9ca3af" }}>匿名化</strong>された上でモデルの改善に利用されます。
