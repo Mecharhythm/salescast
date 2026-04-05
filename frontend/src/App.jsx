@@ -165,6 +165,11 @@ export default function App() {
       <div style={S.header}>
         <div style={S.logo}>SalesCast</div>
         <div style={{ fontSize: 13, color: "#4b5563", marginLeft: 4 }}>売上・需要予測AI</div>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 24 }}>
+          <a href="/guide" style={{ fontSize: 13, color: "#9ca3af", textDecoration: "none" }}>使い方</a>
+          <a href="/usecases" style={{ fontSize: 13, color: "#9ca3af", textDecoration: "none" }}>活用事例</a>
+          <a href="/privacy" style={{ fontSize: 13, color: "#9ca3af", textDecoration: "none" }}>プライバシーポリシー</a>
+        </div>
       </div>
 
       <div style={S.main}>
