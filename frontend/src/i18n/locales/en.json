@@ -1,0 +1,139 @@
+{
+  "nav": {
+    "subtitle": "AI Sales & Demand Forecasting",
+    "guide": "Guide",
+    "usecases": "Use Cases",
+    "privacy": "Privacy Policy",
+    "back": "← Back to top"
+  },
+  "currency": { "symbol": "$", "label": "USD ($)", "locale": "en-US", "code": "USD" },
+  "tabs": { "csv": "📂 Upload CSV", "paste": "📋 Paste Data" },
+  "csv": {
+    "label": "CSV File",
+    "drop": "Drop CSV here, or click to select",
+    "hint": "CSV with date and sales columns (UTF-8 / Shift-JIS supported)",
+    "sampleDownload": "Download sample CSV"
+  },
+  "paste": {
+    "label": "Paste your data here",
+    "hint": "Copy from Excel or Google Sheets and paste with Ctrl+C → Ctrl+V.",
+    "formatLabel": "Supported formats",
+    "formats": [
+      { "label": "Tab-separated (Excel)", "ex": "2024-01-01\t500000" },
+      { "label": "Comma-separated",       "ex": "2024-01-01,500000" },
+      { "label": "With header row",       "ex": "date,sales\n2024-01-01,500000" }
+    ],
+    "placeholder": "2024-01-01\t500000\n2024-01-02\t480000\n...",
+    "linesDetected": "{{count}} rows detected",
+    "confirm": "Confirm data",
+    "confirmed": "✅ {{count}} rows confirmed — click \"Run Forecast\" below",
+    "errorEmpty": "Please paste your data",
+    "errorTooFew": "At least 5 rows of data are required",
+    "errorParse": "Failed to parse the data"
+  },
+  "optIn": {
+    "label": "Help improve forecast accuracy (optional) — ",
+    "privacyLink": "Privacy Policy",
+    "description": "If checked, your data will be ",
+    "anonymized": "anonymized",
+    "descriptionSuffix": " and used to improve the model."
+  },
+  "forecast": {
+    "periodLabel": "Forecast period: {{days}} days",
+    "periodMin": "7 days", "periodMax": "180 days",
+    "run": "Run Forecast", "running": "Forecasting...",
+    "contributed": "🙏 Thank you for contributing! Your data has been anonymized and saved."
+  },
+  "result": {
+    "dataPoints": "Training data", "dataPointsUnit": "{{count}} days",
+    "lastActual": "Last actual date", "avgForecast": "Avg forecast (next {{days}} days)",
+    "chartLabel": "Sales trend & forecast", "forecastStart": "Forecast start",
+    "actual": "Actual", "predicted": "Forecast", "upperBound": "Upper bound", "lowerBound": "Lower bound",
+    "tableLabel": "Forecast table (next 30 days)",
+    "tableHeaders": { "date": "Date", "predicted": "Forecast", "lower": "Lower (95%)", "upper": "Upper (95%)" },
+    "yAxisUnit": "K"
+  },
+  "guide": {
+    "title": "SalesCast User Guide",
+    "intro": "Simply upload your sales data and our AI will forecast future sales and demand. No technical expertise required.",
+    "tags": ["Free", "No sign-up", "CSV support", "Excel support", "English UI"],
+    "stepsTitle": "Steps",
+    "steps": [
+      { "title": "Prepare your data", "body": "Prepare data containing dates and sales amounts. You can copy directly from Excel or Google Sheets.", "example": "Example:\n2024-01-01\t500000\n2024-01-02\t480000" },
+      { "title": "Enter your data", "body": "Select the \"Upload CSV\" or \"Paste Data\" tab. If copying from Excel, the Paste tab works great." },
+      { "title": "Set the forecast period", "body": "Use the slider to choose how many days to forecast. You can set anywhere from 7 to 180 days." },
+      { "title": "Run the forecast", "body": "Press the \"Run Forecast\" button. A chart and forecast table will appear within seconds." },
+      { "title": "Review your results", "body": "The chart shows actual vs. forecast trends. The table shows daily forecast values with 95% confidence intervals." }
+    ],
+    "formatsTitle": "Supported data formats",
+    "csvTitle": "CSV files", "csvDesc": "Both UTF-8 and Shift-JIS encodings are supported. Column names are auto-detected.",
+    "csvExample": "date,sales\n2024-01-01,500000\n2024-01-02,480000",
+    "pasteTitle": "Paste input (tab-separated)", "pasteDesc": "Paste directly from Excel or Google Sheets.",
+    "pasteExample": "2024-01-01\t500000\n2024-01-02\t480000",
+    "minDataTitle": "Minimum data required", "minDataDesc": "At least 10 rows are required. We recommend 90+ days for best accuracy.",
+    "faqTitle": "FAQ",
+    "faqs": [
+      { "q": "Is my data stored on the server?", "a": "Not by default. Data is discarded immediately after forecasting. Only if you check \"Help improve accuracy\" will your data be saved — anonymized." },
+      { "q": "How much data do I need?", "a": "A minimum of 10 rows is required, but 90+ days is recommended for better accuracy." },
+      { "q": "How accurate are the forecasts?", "a": "Accuracy depends on the regularity of your data. Data with clear seasonal or weekly patterns tends to forecast more accurately." },
+      { "q": "Can I forecast things other than sales?", "a": "Yes. Anything with a date and numeric value — visitor counts, orders, page views — can be forecasted." },
+      { "q": "Is it free to use?", "a": "Yes, it is completely free at this time." }
+    ]
+  },
+  "usecases": {
+    "title": "Use Cases by Industry",
+    "intro": "SalesCast works for any business with sales data — restaurants, e-commerce, retail, and more. No expertise needed.",
+    "benefitsLabel": "Key benefits",
+    "dataExampleLabel": "Example data source",
+    "ctaTitle": "Try it now",
+    "ctaDesc": "Free, no sign-up required. Just upload a CSV and forecasting begins.",
+    "ctaBtn": "Start forecasting for free →",
+    "cases": [
+      {
+        "icon": "🍜", "industry": "Restaurants", "title": "Use case: Restaurants",
+        "description": "Enter your daily sales data to forecast next week's or next month's revenue. Optimize ingredient orders and staff scheduling based on demand.",
+        "benefits": ["Automatically learns daily and seasonal sales patterns", "Anticipate busy periods like holidays in advance", "Reduce food waste and improve cost ratios", "Optimize staff scheduling to match demand"],
+        "dataExample": "Daily POS sales data (CSV export from your POS system)"
+      },
+      {
+        "icon": "🛒", "industry": "E-commerce", "title": "Use case: E-commerce",
+        "description": "Analyze order and sales time series to prevent stockouts and overstock. Forecasts account for demand shifts around sales and campaigns.",
+        "benefits": ["Maintain optimal stock levels based on demand forecasts", "Understand demand shifts before and after sales events", "Manage inventory by product category", "Optimize logistics and warehouse costs"],
+        "dataExample": "Sales CSV from Shopify, WooCommerce, Amazon, etc."
+      },
+      {
+        "icon": "🏪", "industry": "Retail", "title": "Use case: Retail & Supermarkets",
+        "description": "Analyze sales by product category and location to improve order accuracy. The model learns seasonal and weather-driven demand shifts.",
+        "benefits": ["Improve order accuracy with category-level forecasts", "Optimize timing of seasonal product purchases", "Reduce lost sales from stockouts", "Cut costs from excess inventory disposal"],
+        "dataExample": "Daily POS data by product or category"
+      }
+    ]
+  },
+  "privacy": {
+    "title": "Privacy Policy & Terms of Service",
+    "enacted": "Effective date: {{date}}",
+    "ppTitle": "Privacy Policy",
+    "tosTitle": "Terms of Service",
+    "pp1Title": "Article 1 — Service operator", "pp1Body": "\"{{service}}\" is an AI sales and demand forecasting service operated by an individual.\nService URL: {{url}}",
+    "pp2Title": "Article 2 — Information collected", "pp2Body": "The service may collect the following information:",
+    "pp2Items": ["Contents of uploaded CSV files (date and numeric data)", "Access logs (IP address, browser info, access timestamp)", "Cookie data collected by Google AdSense for ad delivery"],
+    "pp3Title": "Article 3 — Handling of CSV data",
+    "pp3PrincipleTitle": "[Default behavior]",
+    "pp3PrincipleItems": ["Forecasting runs in real time on the server; data is not stored by default.", "Uploaded data is discarded immediately after forecasting is complete."],
+    "pp3OptInTitle": "[Opt-in data contribution]",
+    "pp3OptInIntro": "Only when you check \"Help improve accuracy\" will your data be saved, after the following anonymization steps:",
+    "pp3OptInItems": ["Dates are shifted by a random offset (±180 days) to prevent identification of the actual time period", "Sales values are normalized to a 0–1 scale to remove absolute amounts", "Files are stored under random IDs with no information linking them to any user", "Anonymized data is used solely for model improvement and is never shared or sold to third parties"],
+    "pp4Title": "Article 4 — Advertising", "pp4Body": "This service uses Google AdSense to display ads. You can disable personalized ads by disabling cookies. See Google's Privacy Policy for details.",
+    "pp5Title": "Article 5 — Analytics", "pp5Body": "Analytics tools may be used to improve the service. Data collected is anonymous and does not identify individuals.",
+    "pp6Title": "Article 6 — Sharing with third parties", "pp6Body": "We do not share collected information with third parties except as required by law, to protect life or property, or with user consent.",
+    "pp7Title": "Article 7 — Policy changes", "pp7Body": "This policy may be updated without notice. Changes will be posted on the service.",
+    "tos1Title": "Article 1 — Purpose", "tos1Body": "These Terms govern use of \"{{service}}\". By using the service, you agree to these Terms.",
+    "tos2Title": "Article 2 — Prohibited conduct",
+    "tos2Items": ["Any act violating laws or public order", "Unauthorized access or hacking of the service", "Infringing the rights of other users or third parties", "Interfering with the operation of the service", "Sending large volumes of requests for commercial purposes"],
+    "tos3Title": "Article 3 — Disclaimer", "tos3Body": "Forecast results are statistical estimates from an AI model and do not guarantee actual sales or demand. The service is not liable for any losses arising from decisions based on forecast results.",
+    "tos4Title": "Article 4 — Intellectual property", "tos4Body": "All intellectual property rights in the service's systems, design, and content belong to the operator.",
+    "tos5Title": "Article 5 — Changes and suspension", "tos5Body": "The operator may change, suspend, or terminate the service without prior notice.",
+    "tos6Title": "Article 6 — Governing law", "tos6Body": "These Terms are governed by the laws of Japan. Any disputes shall be subject to the exclusive jurisdiction of the court having jurisdiction over the operator's location.",
+    "enacted2": "Enacted: {{date}}"
+  }
+}

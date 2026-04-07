@@ -1,3 +1,4 @@
+import "./i18n/index.js"; // ← 追加：これだけでOK
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";

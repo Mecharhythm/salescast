@@ -1,11 +1,20 @@
 import { useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, ReferenceLine
 } from "recharts";
 
 const API_BASE = "https://salescast-api.onrender.com";
+
+// 通貨オプション（言語と独立）
+const CURRENCY_OPTIONS = [
+  { code: "JPY", symbol: "¥", label: "JPY（円）",  locale: "ja-JP" },
+  { code: "USD", symbol: "$", label: "USD ($)",    locale: "en-US" },
+  { code: "EUR", symbol: "€", label: "EUR (€)",    locale: "de-DE" },
+  { code: "GBP", symbol: "£", label: "GBP (£)",    locale: "en-GB" },
+];
 
 function generateSampleCSV() {
   const rows = ["date,sales"];
@@ -30,10 +39,11 @@ function pasteTextToFile(text) {
   return new File([csv], "pasted_data.csv", { type: "text/csv" });
 }
 
-const fmt = (n) => n == null ? "—" : "¥" + Math.round(n).toLocaleString();
-
-function CustomTooltip({ active, payload, label }) {
+function CustomTooltip({ active, payload, label, currency }) {
   if (!active || !payload?.length) return null;
+  const fmt = (n) => n == null ? "—" : new Intl.NumberFormat(currency.locale, {
+    style: "currency", currency: currency.code, maximumFractionDigits: 0
+  }).format(n);
   return (
     <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 14px", fontSize: 13, boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}>
       <div style={{ color: "#6b7280", marginBottom: 6 }}>{label}</div>
@@ -70,10 +80,27 @@ const S = {
   }),
   metric: { background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 10, padding: "16px 20px", flex: 1 },
   optIn: { background: "#eff6ff", border: "0.5px solid #bfdbfe", borderRadius: 10, padding: "14px 18px", display: "flex", gap: 12, alignItems: "flex-start", marginTop: 16 },
+  select: { fontSize: 13, color: "#374151", background: "#fff", border: "0.5px solid #e5e7eb", borderRadius: 7, padding: "5px 10px", cursor: "pointer", outline: "none" },
+  langBtn: (active) => ({
+    fontSize: 12, fontWeight: active ? 600 : 400,
+    color: active ? "#2563eb" : "#9ca3af",
+    background: "none", border: "none", cursor: "pointer", padding: "2px 4px",
+  }),
 };
 
 export default function App() {
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
+
+  // 言語・通貨の状態
+  const [currency, setCurrency] = useState(CURRENCY_OPTIONS[0]); // JPYデフォルト
+
+  const fmt = (n) => n == null ? "—" : new Intl.NumberFormat(currency.locale, {
+    style: "currency", currency: currency.code, maximumFractionDigits: 0
+  }).format(n);
+
+  const switchLang = (lang) => i18n.changeLanguage(lang);
+
   const [tab, setTab] = useState("csv");
   const [file, setFile] = useState(null);
   const [pasteText, setPasteText] = useState("");
@@ -99,11 +126,11 @@ export default function App() {
 
   const applyPaste = () => {
     setPasteError(null);
-    if (!pasteText.trim()) { setPasteError("データを貼り付けてください"); return; }
+    if (!pasteText.trim()) { setPasteError(t("paste.errorEmpty")); return; }
     const lines = pasteText.trim().split("\n").filter((l) => l.trim());
-    if (lines.length < 5) { setPasteError("最低5行以上のデータが必要です"); return; }
+    if (lines.length < 5) { setPasteError(t("paste.errorTooFew")); return; }
     try { setFile(pasteTextToFile(pasteText)); setResult(null); setError(null); }
-    catch { setPasteError("データの解析に失敗しました"); }
+    catch { setPasteError(t("paste.errorParse")); }
   };
 
   const predict = async () => {
@@ -115,7 +142,7 @@ export default function App() {
       form.append("contribute", contribute ? "true" : "false");
       const res = await fetch(`${API_BASE}/predict?periods=${periods}`, { method: "POST", body: form });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "予測に失敗しました");
+      if (!res.ok) throw new Error(data.detail || t("forecast.run"));
       setResult(data);
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
@@ -124,53 +151,86 @@ export default function App() {
   const chartData = (() => {
     if (!result) return [];
     const actualMap = Object.fromEntries(result.actual.map((r) => [r.date, r.value]));
-    return result.full_forecast.map((r) => ({ date: r.date, 実績: actualMap[r.date] ?? null, 予測: r.yhat, 予測下限: r.yhat_lower, 予測上限: r.yhat_upper }));
+    return result.full_forecast.map((r) => ({
+      date: r.date,
+      [t("result.actual")]: actualMap[r.date] ?? null,
+      [t("result.predicted")]: r.yhat,
+      [t("result.lowerBound")]: r.yhat_lower,
+      [t("result.upperBound")]: r.yhat_upper,
+    }));
   })();
 
   const pasteLineCount = pasteText.trim().split("\n").filter((l) => l.trim()).length;
+  const isJa = i18n.language === "ja";
+
+  // Y軸フォーマット（通貨に応じて単位を変える）
+  const yAxisFormatter = (v) => {
+    if (currency.code === "JPY") return currency.symbol + (v / 10000).toFixed(0) + t("result.yAxisUnit");
+    return currency.symbol + (v / 1000).toFixed(0) + t("result.yAxisUnit");
+  };
 
   return (
     <div style={S.app}>
+      {/* ヘッダー */}
       <div style={S.header}>
         <div style={S.logo} onClick={() => navigate("/")}>SalesCast</div>
-        <div style={{ fontSize: 12, color: "#9ca3af", marginLeft: 4 }}>売上・需要予測AI</div>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 24 }}>
-          <span style={S.navLink} onClick={() => navigate("/guide")}>使い方</span>
-          <span style={S.navLink} onClick={() => navigate("/usecases")}>活用事例</span>
-          <span style={S.navLink} onClick={() => navigate("/privacy")}>プライバシーポリシー</span>
+        <div style={{ fontSize: 12, color: "#9ca3af", marginLeft: 4 }}>{t("nav.subtitle")}</div>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 20, alignItems: "center" }}>
+          {/* 言語切替 */}
+          <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <button style={S.langBtn(isJa)} onClick={() => switchLang("ja")}>JA</button>
+            <span style={{ color: "#d1d5db", fontSize: 12 }}>|</span>
+            <button style={S.langBtn(!isJa)} onClick={() => switchLang("en")}>EN</button>
+          </div>
+          {/* 通貨選択 */}
+          <select
+            style={S.select}
+            value={currency.code}
+            onChange={(e) => setCurrency(CURRENCY_OPTIONS.find((c) => c.code === e.target.value))}
+          >
+            {CURRENCY_OPTIONS.map((c) => (
+              <option key={c.code} value={c.code}>{c.label}</option>
+            ))}
+          </select>
+          {/* ナビ */}
+          <span style={S.navLink} onClick={() => navigate("/guide")}>{t("nav.guide")}</span>
+          <span style={S.navLink} onClick={() => navigate("/usecases")}>{t("nav.usecases")}</span>
+          <span style={S.navLink} onClick={() => navigate("/privacy")}>{t("nav.privacy")}</span>
         </div>
       </div>
 
       <div style={S.main}>
         <div style={S.card}>
           {/* タブ */}
-          <div style={{ display: "flex", gap: 4, background: "#f3f4f6", borderRadius: 9, padding: 3, width: "fit-content", marginBottom: 20 }}>
-            <button style={S.tab(tab === "csv")} onClick={() => { setTab("csv"); setFile(null); setResult(null); setError(null); }}>📂 CSVアップロード</button>
-            <button style={S.tab(tab === "paste")} onClick={() => { setTab("paste"); setFile(null); setResult(null); setError(null); }}>📋 コピペ入力</button>
+          <div style={{ display: "flex", gap: 4, background: "#f3f4f6", borderRadius: 9, padding: 4, marginBottom: 20, width: "fit-content" }}>
+            <button style={S.tab(tab === "csv")} onClick={() => { setTab("csv"); setFile(null); setResult(null); setError(null); }}>{t("tabs.csv")}</button>
+            <button style={S.tab(tab === "paste")} onClick={() => { setTab("paste"); setFile(null); setResult(null); setError(null); }}>{t("tabs.paste")}</button>
           </div>
 
           {/* CSVタブ */}
           {tab === "csv" && (
             <>
-              <div style={S.label}>CSVファイル</div>
+              <div style={S.label}>{t("csv.label")}</div>
               <div style={S.drop(dragging)} onClick={() => inputRef.current.click()}
                 onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)} onDrop={onDrop}>
                 <input ref={inputRef} type="file" accept=".csv" style={{ display: "none" }} onChange={(e) => handleFile(e.target.files[0])} />
                 {file ? (
-                  <div><div style={{ fontSize: 26, marginBottom: 6 }}>📄</div>
+                  <div>
+                    <div style={{ fontSize: 26, marginBottom: 6 }}>📄</div>
                     <div style={{ fontWeight: 500 }}>{file.name}</div>
                     <div style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{(file.size / 1024).toFixed(1)} KB</div>
                   </div>
                 ) : (
-                  <div><div style={{ fontSize: 26, marginBottom: 6 }}>☁️</div>
-                    <div style={{ fontWeight: 500, color: "#111827" }}>CSVをドロップ、またはクリックして選択</div>
-                    <div style={{ fontSize: 13, color: "#6b7280", marginTop: 6 }}>日付列・売上列を含むCSV（UTF-8 / Shift-JIS対応）</div>
+                  <div>
+                    <div style={{ fontSize: 26, marginBottom: 6 }}>☁️</div>
+                    <div style={{ fontWeight: 500, color: "#111827" }}>{t("csv.drop")}</div>
+                    <div style={{ fontSize: 13, color: "#6b7280", marginTop: 6 }}>{t("csv.hint")}</div>
                   </div>
                 )}
               </div>
               <div style={{ textAlign: "right", marginTop: 8 }}>
-                <button onClick={downloadSample} style={{ background: "none", border: "none", color: "#2563eb", fontSize: 13, cursor: "pointer", textDecoration: "underline" }}>サンプルCSVをダウンロード</button>
+                <button onClick={downloadSample} style={{ background: "none", border: "none", color: "#2563eb", fontSize: 13, cursor: "pointer", textDecoration: "underline" }}>{t("csv.sampleDownload")}</button>
               </div>
             </>
           )}
@@ -178,12 +238,12 @@ export default function App() {
           {/* コピペタブ */}
           {tab === "paste" && (
             <>
-              <div style={S.label}>データをここに貼り付け</div>
-              <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 10 }}>ExcelやスプレッドシートからCtrl+C → Ctrl+Vで貼り付けできます。</div>
+              <div style={S.label}>{t("paste.label")}</div>
+              <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 10 }}>{t("paste.hint")}</div>
               <div style={{ background: "#f9fafb", border: "0.5px solid #e5e7eb", borderRadius: 8, padding: "10px 14px", marginBottom: 12, fontSize: 13 }}>
-                <div style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>対応フォーマット例</div>
+                <div style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>{t("paste.formatLabel")}</div>
                 <div style={{ display: "flex", gap: 28, flexWrap: "wrap" }}>
-                  {[{ label: "タブ区切り（Excel）", ex: "2024-01-01\t500000" }, { label: "カンマ区切り", ex: "2024-01-01,500000" }, { label: "ヘッダーあり", ex: "日付,売上\n2024-01-01,500000" }].map((f) => (
+                  {t("paste.formats", { returnObjects: true }).map((f) => (
                     <div key={f.label}>
                       <div style={{ color: "#6b7280", marginBottom: 4, fontSize: 12 }}>{f.label}</div>
                       <pre style={{ color: "#2563eb", fontSize: 12, margin: 0 }}>{f.ex}</pre>
@@ -191,15 +251,18 @@ export default function App() {
                   ))}
                 </div>
               </div>
-              <textarea value={pasteText} onChange={(e) => { setPasteText(e.target.value); setPasteError(null); setFile(null); }}
-                placeholder={"2024-01-01\t500000\n2024-01-02\t480000\n..."}
-                style={{ width: "100%", height: 180, background: "#f9fafb", border: "0.5px solid #e5e7eb", borderRadius: 8, color: "#111827", fontSize: 13, fontFamily: "monospace", padding: "10px 12px", resize: "vertical", boxSizing: "border-box", outline: "none" }} />
-              {pasteText.trim() && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{pasteLineCount} 行検出</div>}
+              <textarea
+                value={pasteText}
+                onChange={(e) => { setPasteText(e.target.value); setPasteError(null); setFile(null); }}
+                placeholder={t("paste.placeholder")}
+                style={{ width: "100%", height: 180, background: "#f9fafb", border: "0.5px solid #e5e7eb", borderRadius: 8, color: "#111827", fontSize: 13, fontFamily: "monospace", padding: "10px 12px", resize: "vertical", boxSizing: "border-box", outline: "none" }}
+              />
+              {pasteText.trim() && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{t("paste.linesDetected", { count: pasteLineCount })}</div>}
               {pasteError && <div style={{ marginTop: 6, color: "#dc2626", fontSize: 13 }}>⚠️ {pasteError}</div>}
-              <button onClick={applyPaste} disabled={!pasteText.trim()} style={{ ...S.btn(!pasteText.trim()), marginTop: 10 }}>データを確定する</button>
+              <button onClick={applyPaste} disabled={!pasteText.trim()} style={{ ...S.btn(!pasteText.trim()), marginTop: 10 }}>{t("paste.confirm")}</button>
               {file && tab === "paste" && (
                 <div style={{ marginTop: 10, padding: "10px 14px", background: "#eff6ff", border: "0.5px solid #bfdbfe", borderRadius: 8, fontSize: 13, color: "#1d4ed8" }}>
-                  ✅ {pasteLineCount} 行確定済み — 下の「予測を実行」で予測できます
+                  {t("paste.confirmed", { count: pasteLineCount })}
                 </div>
               )}
             </>
@@ -209,29 +272,42 @@ export default function App() {
           <div style={S.optIn}>
             <input type="checkbox" checked={contribute} onChange={(e) => setContribute(e.target.checked)} style={{ marginTop: 2, accentColor: "#2563eb", width: 15, height: 15, cursor: "pointer" }} />
             <div>
-              <div style={{ fontSize: 13, fontWeight: 500, color: "#111827", marginBottom: 4 }}>予測精度の向上に協力する（任意）― <a href="/privacy" style={{ color: "#2563eb" }}>プライバシーポリシー</a></div>
-              <div style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6 }}>チェックを入れると、データが<strong style={{ color: "#374151" }}>匿名化</strong>された上でモデルの改善に利用されます。</div>
+              <div style={{ fontSize: 13, fontWeight: 500, color: "#111827", marginBottom: 4 }}>
+                {t("optIn.label")}<a href="/privacy" style={{ color: "#2563eb" }}>{t("optIn.privacyLink")}</a>
+              </div>
+              <div style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6 }}>
+                {t("optIn.description")}<strong style={{ color: "#374151" }}>{t("optIn.anonymized")}</strong>{t("optIn.descriptionSuffix")}
+              </div>
             </div>
           </div>
 
           {/* スライダー */}
           <div style={{ marginTop: 20 }}>
-            <div style={S.label}>予測期間：{periods}日</div>
+            <div style={S.label}>{t("forecast.periodLabel", { days: periods })}</div>
             <input type="range" min={7} max={180} value={periods} onChange={(e) => setPeriods(Number(e.target.value))} style={{ width: "100%", accentColor: "#2563eb" }} />
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#9ca3af", marginTop: 4 }}><span>7日</span><span>180日</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#9ca3af", marginTop: 4 }}>
+              <span>{t("forecast.periodMin")}</span>
+              <span>{t("forecast.periodMax")}</span>
+            </div>
           </div>
 
-          <button style={S.btn(!file || loading)} onClick={predict} disabled={!file || loading}>{loading ? "予測中..." : "予測を実行"}</button>
+          <button style={S.btn(!file || loading)} onClick={predict} disabled={!file || loading}>
+            {loading ? t("forecast.running") : t("forecast.run")}
+          </button>
 
           {error && <div style={{ marginTop: 12, padding: "10px 14px", background: "#fef2f2", border: "0.5px solid #fecaca", borderRadius: 8, color: "#dc2626", fontSize: 13 }}>⚠️ {error}</div>}
-          {result?.contributed && <div style={{ marginTop: 10, padding: "10px 14px", background: "#eff6ff", border: "0.5px solid #bfdbfe", borderRadius: 8, fontSize: 13, color: "#1d4ed8" }}>🙏 データの提供ありがとうございます。匿名化して保存しました。</div>}
+          {result?.contributed && <div style={{ marginTop: 10, padding: "10px 14px", background: "#eff6ff", border: "0.5px solid #bfdbfe", borderRadius: 8, fontSize: 13, color: "#1d4ed8" }}>{t("forecast.contributed")}</div>}
         </div>
 
         {/* 結果 */}
         {result && (
           <>
             <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
-              {[{ label: "学習データ数", value: `${result.summary.data_points} 日分` }, { label: "最終実績日", value: result.summary.last_actual }, { label: `今後${periods}日の平均予測`, value: fmt(result.summary.next_30_avg) }].map((m) => (
+              {[
+                { label: t("result.dataPoints"),                          value: t("result.dataPointsUnit", { count: result.summary.data_points }) },
+                { label: t("result.lastActual"),                          value: result.summary.last_actual },
+                { label: t("result.avgForecast", { days: periods }),      value: fmt(result.summary.next_30_avg) },
+              ].map((m) => (
                 <div key={m.label} style={S.metric}>
                   <div style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>{m.label}</div>
                   <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: "-0.3px" }}>{m.value}</div>
@@ -240,30 +316,30 @@ export default function App() {
             </div>
 
             <div style={S.card}>
-              <div style={S.label}>売上推移と予測</div>
+              <div style={S.label}>{t("result.chartLabel")}</div>
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 16 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
                   <XAxis dataKey="date" tick={{ fill: "#9ca3af", fontSize: 11 }} tickFormatter={(v) => v.slice(5)} interval="preserveStartEnd" />
-                  <YAxis tick={{ fill: "#9ca3af", fontSize: 11 }} tickFormatter={(v) => "¥" + (v / 10000).toFixed(0) + "万"} width={64} />
-                  <Tooltip content={<CustomTooltip />} />
+                  <YAxis tick={{ fill: "#9ca3af", fontSize: 11 }} tickFormatter={yAxisFormatter} width={64} />
+                  <Tooltip content={<CustomTooltip currency={currency} />} />
                   <Legend wrapperStyle={{ fontSize: 13, color: "#6b7280" }} />
-                  <ReferenceLine x={result.summary.last_actual} stroke="#d1d5db" strokeDasharray="4 2" label={{ value: "予測開始", fill: "#9ca3af", fontSize: 11 }} />
-                  <Line dataKey="実績" stroke="#2563eb" dot={false} strokeWidth={2} connectNulls={false} />
-                  <Line dataKey="予測" stroke="#7c3aed" dot={false} strokeWidth={2} strokeDasharray="5 3" connectNulls />
-                  <Line dataKey="予測上限" stroke="#e5e7eb" dot={false} strokeWidth={1} />
-                  <Line dataKey="予測下限" stroke="#e5e7eb" dot={false} strokeWidth={1} />
+                  <ReferenceLine x={result.summary.last_actual} stroke="#d1d5db" strokeDasharray="4 2" label={{ value: t("result.forecastStart"), fill: "#9ca3af", fontSize: 11 }} />
+                  <Line dataKey={t("result.actual")}     stroke="#2563eb" dot={false} strokeWidth={2} connectNulls={false} />
+                  <Line dataKey={t("result.predicted")}  stroke="#7c3aed" dot={false} strokeWidth={2} strokeDasharray="5 3" connectNulls />
+                  <Line dataKey={t("result.upperBound")} stroke="#e5e7eb" dot={false} strokeWidth={1} />
+                  <Line dataKey={t("result.lowerBound")} stroke="#e5e7eb" dot={false} strokeWidth={1} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
 
             <div style={S.card}>
-              <div style={S.label}>予測テーブル（直近30日）</div>
+              <div style={S.label}>{t("result.tableLabel")}</div>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                   <thead>
                     <tr style={{ borderBottom: "0.5px solid #e5e7eb" }}>
-                      {["日付", "予測売上", "下限（95%）", "上限（95%）"].map((h) => (
+                      {[t("result.tableHeaders.date"), t("result.tableHeaders.predicted"), t("result.tableHeaders.lower"), t("result.tableHeaders.upper")].map((h) => (
                         <th key={h} style={{ textAlign: "left", padding: "8px 12px", color: "#6b7280", fontWeight: 500, fontSize: 12 }}>{h}</th>
                       ))}
                     </tr>
