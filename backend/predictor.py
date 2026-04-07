@@ -11,11 +11,11 @@ def run_prediction(csv_text: str, periods: int = 30) -> dict:
     """
     df = pd.read_csv(StringIO(csv_text))
 
-    # --- 列の自動検出 ---
+    # --- 列検出 ---
     date_col = _detect_date_column(df)
     value_col = _detect_value_column(df, date_col)
 
-    # Prophet 用に列名を変換
+    # Prophet 用に列名変換
     prophet_df = df[[date_col, value_col]].rename(
         columns={date_col: "ds", value_col: "y"}
     )
