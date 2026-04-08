@@ -74,8 +74,10 @@ def _detect_date_column(df: pd.DataFrame) -> str:
     """日付っぽい列を自動検出"""
     for col in df.columns:
         try:
-            pd.to_datetime(df[col])
-            return col
+            converted = pd.to_datetime(df[col], errors="coerce")
+            # NaT でない値が10行以上あることを確認
+            if converted.notna().sum() >= 10:
+                return col
         except Exception:
             continue
     raise ValueError("日付列が見つかりませんでした")
@@ -87,8 +89,10 @@ def _detect_value_column(df: pd.DataFrame, date_col: str) -> str:
         if col == date_col:
             continue
         try:
-            pd.to_numeric(df[col], errors="raise")
-            return col
+            converted = pd.to_numeric(df[col], errors="coerce")
+            # NaN でない値が10行以上あることを確認
+            if converted.notna().sum() >= 10:
+                return col
         except Exception:
             continue
     raise ValueError("数値列が見つかりませんでした")

@@ -1,30 +1,27 @@
 """
-anonymizer.py
-ユーザー提供データの保存・再学習利用を停止した版。
-互換性維持のため関数名は残す。
+関数名は残す。
 """
 
 from pathlib import Path
 import pandas as pd
 from io import StringIO
 
-# 保存先（互換性維持のため残すが未使用）
+# 保存先（互換性維持
 STORE_DIR = Path("./contributed_data")
 STORE_DIR.mkdir(exist_ok=True)
 
 
 def anonymize_and_save(csv_text: str) -> str:
     """
-    互換性維持のため残すが、保存は行わない。
     必要ならCSVの形式チェックだけ実施。
     """
-    _ = _parse_csv(csv_text)  # 形式チェックだけ
+    _ = _parse_csv(csv_text)  
     return "disabled"
 
 
 def load_all_contributed() -> pd.DataFrame:
     """
-    ユーザー提供データの学習利用を停止したため、常に空を返す。
+    ユーザー提供データの学習利用を停止
     """
     return pd.DataFrame(columns=["ds", "y"])
 

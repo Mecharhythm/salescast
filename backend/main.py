@@ -8,7 +8,7 @@ import io
 import csv
 
 from predictor import run_prediction
-from anonymizer import anonymize_and_save
+#from anonymizer import anonymize_and_save
 
 # ---- レートリミット設定 ----
 # 同一IPから1分間に10回までリクエストを許可
@@ -20,7 +20,11 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://salescast.vercel.app"],
+    allow_origins=[
+        "https://salescast.vercel.app",
+        "http://localhost:5173",
+        "http://localhost:4173",
+    ],
     allow_methods=["POST", "GET"],
     allow_headers=["*"],
 )
@@ -41,7 +45,6 @@ async def predict(
     request: Request,
     file: UploadFile = File(...),
     periods: int = Query(default=30, ge=7, le=180),
-    contribute: Optional[bool] = Form(default=False),
 ):
     # ---- 1. 拡張子チェック ----
     if not file.filename.lower().endswith(".csv"):
@@ -95,13 +98,6 @@ async def predict(
         raise HTTPException(status_code=500, detail=f"予測処理中にエラーが発生しました: {str(e)}")
 
     # ---- 6. オプトイン時のみ匿名化保存 ----
-    contributed = False
-    if contribute:
-        try:
-            anonymize_and_save(csv_text)
-            contributed = True
-        except Exception:
-            contributed = False
-
-    result["contributed"] = contributed
+    
+    result["contributed"] = False
     return result
