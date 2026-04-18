@@ -5,6 +5,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, ReferenceLine
 } from "recharts";
+import HowToGuide from "./components/HowToGuide";
 
 const API_BASE = "https://salescast-api.onrender.com";
 
@@ -199,6 +200,8 @@ export default function App() {
         </div>
       </div>
 
+      
+
       <div style={S.main}>
         <div style={S.card}>
           {/* タブ */}
@@ -207,9 +210,12 @@ export default function App() {
             <button style={S.tab(tab === "paste")} onClick={() => { setTab("paste"); setFile(null); setResult(null); setError(null); }}>{t("tabs.paste")}</button>
           </div>
 
+        
+
           {/* CSVタブ */}
           {tab === "csv" && (
             <>
+              <HowToGuide />
               <div style={S.label}>{t("csv.label")}</div>
               <div style={S.drop(dragging)} onClick={() => inputRef.current.click()}
                 onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
