@@ -28,7 +28,7 @@ def run_prediction(csv_text: str, periods: int = 30) -> dict:
 
     # --- Prophet 学習 ---
     model = Prophet(
-        yearly_seasonality=True,
+        yearly_seasonality='auto',
         weekly_seasonality=True,
         daily_seasonality=False,
         interval_width=0.95,
