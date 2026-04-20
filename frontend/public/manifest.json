@@ -1,0 +1,7 @@
+{
+  "name": "SalesCast",
+  "short_name": "SalesCast",
+  "start_url": "/",
+  "display": "standalone",
+  "icons": []
+}
