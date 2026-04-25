@@ -9,7 +9,6 @@ import HowToGuide from "./components/HowToGuide";
 
 const API_BASE = "https://salescast-api.onrender.com";
 
-// 通貨オプション（言語と独立）
 const CURRENCY_OPTIONS = [
   { code: "JPY", symbol: "¥", label: "JPY（円）",  locale: "ja-JP" },
   { code: "USD", symbol: "$", label: "USD ($)",    locale: "en-US" },
@@ -92,9 +91,9 @@ const S = {
 export default function App() {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
+  const chartRef = useRef(null);
 
-  // 言語・通貨の状態
-  const [currency, setCurrency] = useState(CURRENCY_OPTIONS[0]); // JPYデフォルト
+  const [currency, setCurrency] = useState(CURRENCY_OPTIONS[0]);
 
   const fmt = (n) => n == null ? "—" : new Intl.NumberFormat(currency.locale, {
     style: "currency", currency: currency.code, maximumFractionDigits: 0
@@ -113,6 +112,10 @@ export default function App() {
   const [error, setError] = useState(null);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef();
+
+  // 表示範囲（インデックス）
+  const [rangeStart, setRangeStart] = useState(0);
+  const [rangeEnd, setRangeEnd] = useState(0);
 
   const handleFile = (f) => { if (!f) return; setFile(f); setResult(null); setError(null); };
   const onDrop = useCallback((e) => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]); }, []);
@@ -145,30 +148,84 @@ export default function App() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || t("forecast.run"));
       setResult(data);
+      // 範囲をリセット（全体表示）
+      const len = data.full_forecast.length;
+      setRangeStart(0);
+      setRangeEnd(len - 1);
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
   };
 
   const chartData = (() => {
-    if (!result) return [];
-    const actualMap = Object.fromEntries(result.actual.map((r) => [r.date, r.value]));
-    return result.full_forecast.map((r) => ({
+  if (!result) return [];
+  const actualMap = Object.fromEntries(result.actual.map((r) => [r.date, r.value]));
+  const lastActual = result.summary.last_actual;
+  return result.full_forecast.map((r) => {
+    const isActual = r.date <= lastActual;
+    return {
       date: r.date,
-      [t("result.actual")]: actualMap[r.date] ?? null,
-      [t("result.predicted")]: r.yhat,
-      [t("result.lowerBound")]: r.yhat_lower,
-      [t("result.upperBound")]: r.yhat_upper,
-    }));
+      actual:     isActual ? (actualMap[r.date] ?? null) : undefined,
+      predicted:  isActual ? undefined : r.yhat,
+      lowerBound: isActual ? undefined : r.yhat_lower,
+      upperBound: isActual ? undefined : r.yhat_upper,
+    };
+  });
+})();
+
+  // 表示範囲で絞り込んだデータ
+  const filteredChartData = chartData.slice(rangeStart, rangeEnd + 1);
+
+  // 範囲内統計（予測値ベース）
+  const rangeStats = (() => {
+    if (!filteredChartData.length) return null;
+    const vals = filteredChartData.map(d => d.predicted).filter(v => v != null);
+    if (!vals.length) return null;
+    const total = vals.reduce((a, b) => a + b, 0);
+    return {
+      avg:   total / vals.length,
+      max:   Math.max(...vals),
+      min:   Math.min(...vals),
+      total: total,
+    };
   })();
 
   const pasteLineCount = pasteText.trim().split("\n").filter((l) => l.trim()).length;
   const isJa = i18n.language === "ja";
 
-  // Y軸フォーマット（通貨に応じて単位を変える）
   const yAxisFormatter = (v) => {
     if (currency.code === "JPY") return currency.symbol + (v / 10000).toFixed(0) + t("result.yAxisUnit");
     return currency.symbol + (v / 1000).toFixed(0) + t("result.yAxisUnit");
   };
+
+  // グラフをPNG保存
+  const saveChart = async () => {
+    const node = chartRef.current;
+    if (!node) return;
+    try {
+      const { default: html2canvas } = await import("html2canvas");
+      const canvas = await html2canvas(node, { backgroundColor: "#ffffff", scale: 2 });
+      const link = document.createElement("a");
+      const fromDate = filteredChartData[0]?.date ?? "export";
+      link.download = `salescast_${fromDate}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    } catch (e) {
+      console.error("Chart save failed:", e);
+    }
+  };
+
+  // テーブル用：範囲内かつ予測区間のみ
+  const filteredTableData = (() => {
+    if (!result) return [];
+    const forecastStart = result.summary.last_actual;
+    return filteredChartData
+      .filter(d => d.date >= forecastStart)
+      .map(d => {
+        const row = result.full_forecast.find(f => f.date === d.date);
+        return row ? { date: d.date, yhat: row.yhat, yhat_lower: row.yhat_lower, yhat_upper: row.yhat_upper } : null;
+      })
+      .filter(Boolean);
+  })();
 
   return (
     <div style={S.app}>
@@ -177,42 +234,27 @@ export default function App() {
         <div style={S.logo} onClick={() => navigate("/")}>SalesCast</div>
         <div style={{ fontSize: 12, color: "#9ca3af", marginLeft: 4 }}>{t("nav.subtitle")}</div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 20, alignItems: "center" }}>
-          {/* 言語切替 */}
           <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
             <button style={S.langBtn(isJa)} onClick={() => switchLang("ja")}>JA</button>
             <span style={{ color: "#d1d5db", fontSize: 12 }}>|</span>
             <button style={S.langBtn(!isJa)} onClick={() => switchLang("en")}>EN</button>
           </div>
-          {/* 通貨選択 */}
-          <select
-            style={S.select}
-            value={currency.code}
-            onChange={(e) => setCurrency(CURRENCY_OPTIONS.find((c) => c.code === e.target.value))}
-          >
-            {CURRENCY_OPTIONS.map((c) => (
-              <option key={c.code} value={c.code}>{c.label}</option>
-            ))}
+          <select style={S.select} value={currency.code} onChange={(e) => setCurrency(CURRENCY_OPTIONS.find((c) => c.code === e.target.value))}>
+            {CURRENCY_OPTIONS.map((c) => (<option key={c.code} value={c.code}>{c.label}</option>))}
           </select>
-          {/* ナビ */}
           <span style={S.navLink} onClick={() => navigate("/guide")}>{t("nav.guide")}</span>
           <span style={S.navLink} onClick={() => navigate("/usecases")}>{t("nav.usecases")}</span>
           <span style={S.navLink} onClick={() => navigate("/privacy")}>{t("nav.privacy")}</span>
         </div>
       </div>
 
-      
-
       <div style={S.main}>
         <div style={S.card}>
-          {/* タブ */}
           <div style={{ display: "flex", gap: 4, background: "#f3f4f6", borderRadius: 9, padding: 4, marginBottom: 20, width: "fit-content" }}>
             <button style={S.tab(tab === "csv")} onClick={() => { setTab("csv"); setFile(null); setResult(null); setError(null); }}>{t("tabs.csv")}</button>
             <button style={S.tab(tab === "paste")} onClick={() => { setTab("paste"); setFile(null); setResult(null); setError(null); }}>{t("tabs.paste")}</button>
           </div>
 
-        
-
-          {/* CSVタブ */}
           {tab === "csv" && (
             <>
               <HowToGuide />
@@ -241,7 +283,6 @@ export default function App() {
             </>
           )}
 
-          {/* コピペタブ */}
           {tab === "paste" && (
             <>
               <div style={S.label}>{t("paste.label")}</div>
@@ -257,12 +298,9 @@ export default function App() {
                   ))}
                 </div>
               </div>
-              <textarea
-                value={pasteText}
-                onChange={(e) => { setPasteText(e.target.value); setPasteError(null); setFile(null); }}
+              <textarea value={pasteText} onChange={(e) => { setPasteText(e.target.value); setPasteError(null); setFile(null); }}
                 placeholder={t("paste.placeholder")}
-                style={{ width: "100%", height: 180, background: "#f9fafb", border: "0.5px solid #e5e7eb", borderRadius: 8, color: "#111827", fontSize: 13, fontFamily: "monospace", padding: "10px 12px", resize: "vertical", boxSizing: "border-box", outline: "none" }}
-              />
+                style={{ width: "100%", height: 180, background: "#f9fafb", border: "0.5px solid #e5e7eb", borderRadius: 8, color: "#111827", fontSize: 13, fontFamily: "monospace", padding: "10px 12px", resize: "vertical", boxSizing: "border-box", outline: "none" }} />
               {pasteText.trim() && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{t("paste.linesDetected", { count: pasteLineCount })}</div>}
               {pasteError && <div style={{ marginTop: 6, color: "#dc2626", fontSize: 13 }}>⚠️ {pasteError}</div>}
               <button onClick={applyPaste} disabled={!pasteText.trim()} style={{ ...S.btn(!pasteText.trim()), marginTop: 10 }}>{t("paste.confirm")}</button>
@@ -274,7 +312,6 @@ export default function App() {
             </>
           )}
 
-          {/* オプトイン */}
           <div style={S.optIn}>
             <input type="checkbox" checked={contribute} onChange={(e) => setContribute(e.target.checked)} style={{ marginTop: 2, accentColor: "#2563eb", width: 15, height: 15, cursor: "pointer" }} />
             <div>
@@ -287,7 +324,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* スライダー */}
           <div style={{ marginTop: 20 }}>
             <div style={S.label}>{t("forecast.periodLabel", { days: periods })}</div>
             <input type="range" min={7} max={180} value={periods} onChange={(e) => setPeriods(Number(e.target.value))} style={{ width: "100%", accentColor: "#2563eb" }} />
@@ -305,14 +341,14 @@ export default function App() {
           {result?.contributed && <div style={{ marginTop: 10, padding: "10px 14px", background: "#eff6ff", border: "0.5px solid #bfdbfe", borderRadius: 8, fontSize: 13, color: "#1d4ed8" }}>{t("forecast.contributed")}</div>}
         </div>
 
-        {/* 結果 */}
         {result && (
           <>
+            {/* サマリーメトリクス */}
             <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
               {[
-                { label: t("result.dataPoints"),                          value: t("result.dataPointsUnit", { count: result.summary.data_points }) },
-                { label: t("result.lastActual"),                          value: result.summary.last_actual },
-                { label: t("result.avgForecast", { days: periods }),      value: fmt(result.summary.next_30_avg) },
+                { label: t("result.dataPoints"),                     value: t("result.dataPointsUnit", { count: result.summary.data_points }) },
+                { label: t("result.lastActual"),                     value: result.summary.last_actual },
+                { label: t("result.avgForecast", { days: periods }), value: fmt(result.summary.next_30_avg) },
               ].map((m) => (
                 <div key={m.label} style={S.metric}>
                   <div style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>{m.label}</div>
@@ -321,26 +357,107 @@ export default function App() {
               ))}
             </div>
 
+            {/* グラフカード */}
             <div style={S.card}>
-              <div style={S.label}>{t("result.chartLabel")}</div>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 16 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                  <XAxis dataKey="date" tick={{ fill: "#9ca3af", fontSize: 11 }} tickFormatter={(v) => v.slice(5)} interval="preserveStartEnd" />
-                  <YAxis tick={{ fill: "#9ca3af", fontSize: 11 }} tickFormatter={yAxisFormatter} width={64} />
-                  <Tooltip content={<CustomTooltip currency={currency} />} />
-                  <Legend wrapperStyle={{ fontSize: 13, color: "#6b7280" }} />
-                  <ReferenceLine x={result.summary.last_actual} stroke="#d1d5db" strokeDasharray="4 2" label={{ value: t("result.forecastStart"), fill: "#9ca3af", fontSize: 11 }} />
-                  <Line dataKey={t("result.actual")}     stroke="#2563eb" dot={false} strokeWidth={2} connectNulls={false} />
-                  <Line dataKey={t("result.predicted")}  stroke="#7c3aed" dot={false} strokeWidth={2} strokeDasharray="5 3" connectNulls />
-                  <Line dataKey={t("result.upperBound")} stroke="#e5e7eb" dot={false} strokeWidth={1} />
-                  <Line dataKey={t("result.lowerBound")} stroke="#e5e7eb" dot={false} strokeWidth={1} />
-                </LineChart>
-              </ResponsiveContainer>
+              {/* タイトル＋保存ボタン */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <div style={{ ...S.label, marginBottom: 0 }}>{t("result.chartLabel")}</div>
+                <button
+                  onClick={saveChart}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 5,
+                    padding: "6px 14px", borderRadius: 7,
+                    border: "0.5px solid #e5e7eb", background: "#fff",
+                    color: "#374151", fontSize: 13, cursor: "pointer",
+                    fontFamily: "'DM Sans','Noto Sans JP',sans-serif",
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f9fafb"}
+                  onMouseLeave={e => e.currentTarget.style.background = "#fff"}
+                >
+                  ⬇ {t("result.saveChart")}
+                </button>
+              </div>
+
+              {/* 表示範囲コントロール */}
+              {chartData.length > 0 && (
+                <div style={{ marginBottom: 20, padding: "16px 20px", background: "#f9fafb", borderRadius: 10, border: "0.5px solid #e5e7eb" }}>
+                  <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 12 }}>
+                    {t("result.rangeLabel")}：
+                    <span style={{ color: "#111827", fontWeight: 600 }}>
+                      {filteredChartData[0]?.date ?? "—"} 〜 {filteredChartData[filteredChartData.length - 1]?.date ?? "—"}
+                    </span>
+                    <span style={{ color: "#9ca3af", marginLeft: 6 }}>({filteredChartData.length}{t("result.days")})</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap" }}>
+                    <div style={{ flex: 1, minWidth: 180 }}>
+                      <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>{t("result.rangeFrom")}</div>
+                      <input type="range" min={0} max={chartData.length - 1} value={rangeStart}
+                        onChange={(e) => { const v = Number(e.target.value); if (v < rangeEnd) setRangeStart(v); }}
+                        style={{ width: "100%", accentColor: "#2563eb" }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 180 }}>
+                      <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>{t("result.rangeTo")}</div>
+                      <input type="range" min={0} max={chartData.length - 1} value={rangeEnd}
+                        onChange={(e) => { const v = Number(e.target.value); if (v > rangeStart) setRangeEnd(v); }}
+                        style={{ width: "100%", accentColor: "#7c3aed" }} />
+                    </div>
+                    <button
+                      onClick={() => { setRangeStart(0); setRangeEnd(result.full_forecast.length - 1); }}
+                      style={{ padding: "6px 12px", borderRadius: 6, border: "0.5px solid #e5e7eb", background: "#fff", color: "#6b7280", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap", marginBottom: 2 }}
+                    >
+                      {t("result.rangeReset")}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* グラフ本体（保存対象） */}
+              <div ref={chartRef} style={{ background: "#fff" }}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={filteredChartData} margin={{ top: 8, right: 16, bottom: 0, left: 16 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                    <XAxis dataKey="date" tick={{ fill: "#9ca3af", fontSize: 11 }} tickFormatter={(v) => v.slice(5)} interval="preserveStartEnd" />
+                    <YAxis tick={{ fill: "#9ca3af", fontSize: 11 }} tickFormatter={yAxisFormatter} width={64} />
+                    <Tooltip content={<CustomTooltip currency={currency} />} />
+                    <Legend wrapperStyle={{ fontSize: 13, color: "#6b7280" }} />
+                    <ReferenceLine x={result.summary.last_actual} stroke="#d1d5db" strokeDasharray="4 2" label={{ value: t("result.forecastStart"), fill: "#9ca3af", fontSize: 11 }} />
+                    <Line dataKey="actual"     name={t("result.actual")}     stroke="#2563eb" dot={false} strokeWidth={2} connectNulls={false} isAnimationActive={false} />
+                    <Line dataKey="predicted"  name={t("result.predicted")}  stroke="#7c3aed" dot={false} strokeWidth={2} strokeDasharray="5 3" connectNulls={false} isAnimationActive={false} />
+                    <Line dataKey="upperBound" name={t("result.upperBound")} stroke="#e5e7eb" dot={false} strokeWidth={1} connectNulls={false} isAnimationActive={false} />
+                    <Line dataKey="lowerBound" name={t("result.lowerBound")} stroke="#e5e7eb" dot={false} strokeWidth={1} connectNulls={false} isAnimationActive={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* 範囲内統計 */}
+              {rangeStats && (
+                <div style={{ marginTop: 20 }}>
+                  <div style={{ fontSize: 11, color: "#6b7280", letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 12 }}>
+                    {t("result.rangeStats")}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
+                    {[
+                      { label: t("result.statsAvg"),   value: fmt(rangeStats.avg),   color: "#7c3aed" },
+                      { label: t("result.statsMax"),   value: fmt(rangeStats.max),   color: "#059669" },
+                      { label: t("result.statsMin"),   value: fmt(rangeStats.min),   color: "#dc2626" },
+                      { label: t("result.statsTotal"), value: fmt(rangeStats.total), color: "#2563eb" },
+                    ].map((s) => (
+                      <div key={s.label} style={{ background: "#f9fafb", border: "0.5px solid #e5e7eb", borderRadius: 10, padding: "14px 16px" }}>
+                        <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>{s.label}</div>
+                        <div style={{ fontSize: 17, fontWeight: 600, color: s.color, letterSpacing: "-0.3px" }}>{s.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
+            {/* 予測テーブル（範囲連動） */}
             <div style={S.card}>
-              <div style={S.label}>{t("result.tableLabel")}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                <div style={{ ...S.label, marginBottom: 0 }}>{t("result.tableLabel")}</div>
+                <span style={{ color: "#9ca3af", fontSize: 12 }}>({filteredTableData.length}{t("result.days")})</span>
+              </div>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                   <thead>
@@ -351,7 +468,7 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {result.forecast.slice(0, 30).map((r) => (
+                    {filteredTableData.map((r) => (
                       <tr key={r.date} style={{ borderBottom: "0.5px solid #f3f4f6" }}>
                         <td style={{ padding: "8px 12px", color: "#6b7280" }}>{r.date}</td>
                         <td style={{ padding: "8px 12px", fontWeight: 600 }}>{fmt(r.yhat)}</td>
